@@ -1,7 +1,4 @@
-const BASE_URL = (
-  import.meta.env.VITE_API_URL ||
-  "https://edureachcollege-chatbot-1.onrender.com/api"
-).replace(/\/$/, "");
+const BASE_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
 async function request(endpoint, options = {}) {
   const url = `${BASE_URL}${endpoint}`;
