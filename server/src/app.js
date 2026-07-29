@@ -7,10 +7,26 @@ const app = express();
 
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (process.env.CLIENT_URL) {
+        const allowed = process.env.CLIENT_URL.split(",").map((s) => s.trim());
+        if (allowed.includes("*") || allowed.includes(origin)) {
+          return callback(null, true);
+        }
+      }
+      // Allow localhost and Vercel domains by default
+      if (
+        origin.startsWith("http://localhost:") ||
+        origin.endsWith(".vercel.app")
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-    allowedHeaders: ["Content-Type"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
 app.use(express.json({ limit: "10mb" }));
