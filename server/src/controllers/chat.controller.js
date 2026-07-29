@@ -12,7 +12,7 @@ export const sendMessage = async (req, res, next) => {
       return;
     }
 
-    const answer = await answerQuestion(message);
+    const answer = await answerQuestion(message.trim());
     console.log("Chat controller answer:", answer);
 
     res.json({

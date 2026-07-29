@@ -1,31 +1,25 @@
-import { MongoClient } from "mongodb";
-import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
+import {
+  ChatGoogleGenerativeAI,
+  GoogleGenerativeAIEmbeddings,
+} from "@langchain/google-genai";
+
 import { MongoDBAtlasVectorSearch } from "@langchain/mongodb";
+import connectDB from "../config/database.config.js";
+
 import path from "path";
 import { fileURLToPath } from "url";
+
 import { TextLoader } from "@langchain/classic/document_loaders/fs/text";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 
-let mongoClient = null;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 const vectorIndexName =
-  process.env.MONGODB_VECTOR_INDEX || "edureach_vetor_index";
+  process.env.MONGODB_VECTOR_INDEX || "edureach_vector_index";
 
 const getMongoClient = async () => {
-  const uri = process.env.MONGODB_URI || process.env.MONGODB_URL || "";
-
-  if (!uri) {
-    throw new Error(
-      "MongoDB connection string is not set. Add MONGODB_URI or MONGODB_URL to your server .env file.",
-    );
-  }
-
-  if (!mongoClient) {
-    mongoClient = new MongoClient(uri);
-    await mongoClient.connect();
-  }
-  return mongoClient;
+  return connectDB();
 };
 
 const getEmbeddings = () => {
@@ -47,26 +41,6 @@ export const getVectorStore = async () => {
     textKey: "text",
     embeddingKey: "embedding",
   });
-};
-
-export const answerQuestion = async (question) => {
-  const vectorStore = await getVectorStore();
-  const docs = await vectorStore.similaritySearch(question, 4);
-
-  if (!docs || docs.length === 0) {
-    return "I couldn’t find any relevant information in the knowledge base for that question.";
-  }
-
-  const context = docs
-    .map((doc) => doc.pageContent.replace(/\s+/g, " ").trim())
-    .filter(Boolean)
-    .join("\n\n");
-
-  if (!context) {
-    return "I couldn’t find any relevant information in the knowledge base for that question.";
-  }
-
-  return `Based on the knowledge base, here is the most relevant information:\n\n${context}`;
 };
 
 export const initializeKnowledgeBase = async () => {
@@ -154,4 +128,22 @@ export const initializeKnowledgeBase = async () => {
   }
 };
 
-export default { getMongoClient, getEmbeddings, getVectorStore };
+export const answerQuestion = async (question) => {
+  const vectorStore = await getVectorStore();
+  const docs = await vectorStore.similaritySearch(question, 4);
+
+  if (!docs || docs.length === 0) {
+    return "I couldn’t find any relevant information in the knowledge base for that question.";
+  }
+
+  const context = docs
+    .map((doc) => doc.pageContent.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n\n");
+
+  if (!context) {
+    return "I couldn’t find any relevant information in the knowledge base for that question.";
+  }
+
+  return `Based on the knowledge base, here is the most relevant information:\n\n${context}`;
+};
