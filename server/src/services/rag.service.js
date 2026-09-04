@@ -228,7 +228,7 @@ export const answerQuestion = async (question) => {
   try {
     const model = new ChatGoogleGenerativeAI({
       apiKey: process.env.GOOGLE_API_KEY,
-      model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
+      model: process.env.GEMINI_MODEL || "gemini-3.6-flash",
       temperature: 0.2,
       maxOutputTokens: 512,
     });
