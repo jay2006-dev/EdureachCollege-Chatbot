@@ -2,6 +2,7 @@ import {
   ChatGoogleGenerativeAI,
   GoogleGenerativeAIEmbeddings,
 } from "@langchain/google-genai";
+import { HumanMessage } from "@langchain/core/messages";
 
 import { MongoDBAtlasVectorSearch } from "@langchain/mongodb";
 import connectDB from "../config/database.config.js";
@@ -128,22 +129,139 @@ export const initializeKnowledgeBase = async () => {
   }
 };
 
+const normalizeText = (value) =>
+  typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+
+const deduplicateDocs = (docs = []) => {
+  const uniqueDocs = [];
+  const seen = new Set();
+
+  for (const doc of docs) {
+    const text = normalizeText(doc?.pageContent);
+    if (!text || seen.has(text)) {
+      continue;
+    }
+    seen.add(text);
+    uniqueDocs.push({ ...doc, pageContent: text });
+  }
+
+  return uniqueDocs;
+};
+
+const getRelevantFacts = (question, docs) => {
+  const normalizedQuestion = normalizeText(question).toLowerCase();
+  const questionWords = new Set(
+    normalizedQuestion.split(/\W+/).filter((word) => word.length > 2),
+  );
+
+  const sentenceMatches = [];
+
+  for (const doc of docs) {
+    const sentences = doc.pageContent.split(/(?<=[.!?])\s+/);
+    for (const sentence of sentences) {
+      const normalizedSentence = normalizeText(sentence);
+      if (!normalizedSentence) {
+        continue;
+      }
+      const lowered = normalizedSentence.toLowerCase();
+      const score = [...questionWords].reduce((total, word) => {
+        return total + (lowered.includes(word) ? 1 : 0);
+      }, 0);
+
+      sentenceMatches.push({ sentence: normalizedSentence, score });
+    }
+  }
+
+  const ranked = sentenceMatches
+    .sort((a, b) => b.score - a.score || b.sentence.length - a.sentence.length)
+    .filter((entry, index, arr) => {
+      return (
+        index === 0 ||
+        !arr
+          .slice(0, index)
+          .some(
+            (previous) =>
+              previous.sentence.toLowerCase() === entry.sentence.toLowerCase(),
+          )
+      );
+    });
+
+  const selectedFacts = ranked.slice(0, 3).map((entry) => entry.sentence);
+
+  if (selectedFacts.length > 0) {
+    return selectedFacts;
+  }
+
+  return docs
+    .map((doc) => normalizeText(doc.pageContent))
+    .filter(Boolean)
+    .slice(0, 2);
+};
+
+export const buildGroundedAnswer = (question, docs = []) => {
+  const uniqueDocs = deduplicateDocs(docs);
+
+  if (!uniqueDocs.length) {
+    return "I couldn’t find any relevant information in the knowledge base for that question.";
+  }
+
+  const facts = getRelevantFacts(question, uniqueDocs);
+
+  return `Based on the college information, ${facts.join(" ")}`;
+};
+
 export const answerQuestion = async (question) => {
   const vectorStore = await getVectorStore();
   const docs = await vectorStore.similaritySearch(question, 4);
+  const uniqueDocs = deduplicateDocs(docs);
 
-  if (!docs || docs.length === 0) {
+  if (!uniqueDocs.length) {
     return "I couldn’t find any relevant information in the knowledge base for that question.";
   }
 
-  const context = docs
-    .map((doc) => doc.pageContent.replace(/\s+/g, " ").trim())
-    .filter(Boolean)
-    .join("\n\n");
+  const groundedFallback = buildGroundedAnswer(question, uniqueDocs);
 
-  if (!context) {
-    return "I couldn’t find any relevant information in the knowledge base for that question.";
+  if (!process.env.GOOGLE_API_KEY) {
+    return groundedFallback;
   }
 
-  return `Based on the knowledge base, here is the most relevant information:\n\n${context}`;
+  try {
+    const model = new ChatGoogleGenerativeAI({
+      apiKey: process.env.GOOGLE_API_KEY,
+      model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
+      temperature: 0.2,
+      maxOutputTokens: 512,
+    });
+
+    const context = uniqueDocs
+      .map((doc) => normalizeText(doc.pageContent))
+      .filter(Boolean)
+      .join("\n\n");
+
+    const prompt = `You are EduReach's college assistant. Use only the context below to answer the user's question. If the answer is not in the context, say that the information is not available. Keep the answer concise and avoid repeating the same fact.\n\nQuestion: ${question}\n\nContext:\n${context}`;
+
+    const response = await model.invoke([new HumanMessage(prompt)]);
+    const rawAnswer =
+      typeof response?.content === "string"
+        ? response.content
+        : Array.isArray(response?.content)
+          ? response.content
+              .map((part) =>
+                typeof part === "string" ? part : (part?.text ?? ""),
+              )
+              .join("")
+          : String(response ?? "");
+
+    const finalAnswer = normalizeText(rawAnswer);
+    if (finalAnswer) {
+      return finalAnswer;
+    }
+  } catch (error) {
+    console.warn(
+      "Gemini answer generation failed, falling back to grounded summary.",
+      error.message || error,
+    );
+  }
+
+  return groundedFallback;
 };
