@@ -132,6 +132,23 @@ export const initializeKnowledgeBase = async () => {
 const normalizeText = (value) =>
   typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 
+const greetingResponses = [
+  "Hi! I’m EduReach Bot. How can I help you today?",
+  "Hello! Ask me about EduReach courses, fees, admissions, or campus life.",
+  "Hey! What would you like to know about EduReach College?",
+];
+let lastGreetingIndex = -1;
+
+export const isGreeting = (value) =>
+  /^(hi|hello|hey|good morning|good afternoon|good evening)[\s!.?,]*$/i.test(
+    normalizeText(value),
+  );
+
+const getGreetingResponse = () => {
+  lastGreetingIndex = (lastGreetingIndex + 1) % greetingResponses.length;
+  return greetingResponses[lastGreetingIndex];
+};
+
 const deduplicateDocs = (docs = []) => {
   const uniqueDocs = [];
   const seen = new Set();
@@ -211,6 +228,10 @@ export const buildGroundedAnswer = (question, docs = []) => {
 };
 
 export const answerQuestion = async (question) => {
+  if (isGreeting(question)) {
+    return getGreetingResponse();
+  }
+
   const vectorStore = await getVectorStore();
   const docs = await vectorStore.similaritySearch(question, 4);
   const uniqueDocs = deduplicateDocs(docs);

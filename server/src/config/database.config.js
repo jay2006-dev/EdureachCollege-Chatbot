@@ -3,6 +3,13 @@ import { MongoClient } from "mongodb";
 let cachedClient = null;
 let cachedPromise = null;
 
+const wait = (milliseconds) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+const isTransientConnectionError = (error) =>
+  ["EAI_AGAIN", "ECONNRESET", "ETIMEDOUT"].includes(error?.code) ||
+  error?.cause?.code === "EAI_AGAIN";
+
 const connectDB = async () => {
   const uri = process.env.MONGODB_URI || process.env.MONGODB_URL || "";
 
@@ -16,21 +23,27 @@ const connectDB = async () => {
     return cachedClient;
   }
 
-  if (!cachedPromise) {
-    cachedPromise = MongoClient.connect(uri, {
-      serverSelectionTimeoutMS: 10000,
-      maxPoolSize: 10,
-    });
-  }
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    if (!cachedPromise) {
+      cachedPromise = MongoClient.connect(uri, {
+        serverSelectionTimeoutMS: 10000,
+        maxPoolSize: 10,
+      });
+    }
 
-  try {
-    const client = await cachedPromise;
-    cachedClient = client;
-    console.log("MongoDB connected successfully.");
-    return client;
-  } catch (error) {
-    cachedPromise = null;
-    throw error;
+    try {
+      const client = await cachedPromise;
+      cachedClient = client;
+      console.log("MongoDB connected successfully.");
+      return client;
+    } catch (error) {
+      cachedPromise = null;
+      if (attempt === 3 || !isTransientConnectionError(error)) {
+        throw error;
+      }
+      console.warn(`MongoDB connection attempt ${attempt} failed; retrying...`);
+      await wait(attempt * 1000);
+    }
   }
 };
 

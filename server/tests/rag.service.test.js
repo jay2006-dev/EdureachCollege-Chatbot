@@ -1,7 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildGroundedAnswer } from "../src/services/rag.service.js";
+import {
+  buildGroundedAnswer,
+  isGreeting,
+} from "../src/services/rag.service.js";
+
+test("isGreeting recognizes greetings without requiring a database lookup", () => {
+  assert.equal(isGreeting("Hey "), true);
+  assert.equal(isGreeting("good morning!"), true);
+  assert.equal(isGreeting("What are the courses?"), false);
+});
 
 test("buildGroundedAnswer creates a specific answer from unique context and avoids raw duplicate chunk echoing", () => {
   const docs = [
