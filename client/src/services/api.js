@@ -1,4 +1,10 @@
-const BASE_URL = `${import.meta.env.BACKEND_API_URL || "http://localhost:5000"}/api`;
+const configuredUrl =
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.BACKEND_API_URL ||
+  "http://localhost:5000";
+const BASE_URL = configuredUrl.replace(/\/$/, "").endsWith("/api")
+  ? configuredUrl.replace(/\/$/, "")
+  : `${configuredUrl.replace(/\/$/, "")}/api`;
 
 async function request(endpoint, options = {}) {
   const url = `${BASE_URL}${endpoint}`;
