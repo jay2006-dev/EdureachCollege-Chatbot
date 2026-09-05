@@ -7,8 +7,9 @@ const wait = (milliseconds) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 const isTransientConnectionError = (error) =>
-  ["EAI_AGAIN", "ECONNRESET", "ETIMEDOUT"].includes(error?.code) ||
-  error?.cause?.code === "EAI_AGAIN";
+  ["EAI_AGAIN", "ESERVFAIL", "ENOTFOUND", "ECONNRESET", "ETIMEDOUT"].includes(
+    error?.code,
+  ) || ["EAI_AGAIN", "ESERVFAIL", "ENOTFOUND"].includes(error?.cause?.code);
 
 const connectDB = async () => {
   const uri = process.env.MONGODB_URI || process.env.MONGODB_URL || "";
