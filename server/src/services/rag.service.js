@@ -167,6 +167,10 @@ const deduplicateDocs = (docs = []) => {
 
 const getRelevantFacts = (question, docs) => {
   const normalizedQuestion = normalizeText(question).toLowerCase();
+  const isProgramQuestion =
+    /\b(program|programs|course|courses|degree|degrees|branch|branches|speciali[sz]ation)\b/.test(
+      normalizedQuestion,
+    );
   const questionWords = new Set(
     normalizedQuestion.split(/\W+/).filter((word) => word.length > 2),
   );
@@ -203,7 +207,9 @@ const getRelevantFacts = (question, docs) => {
       );
     });
 
-  const selectedFacts = ranked.slice(0, 3).map((entry) => entry.sentence);
+  const selectedFacts = ranked
+    .slice(0, isProgramQuestion ? 8 : 3)
+    .map((entry) => entry.sentence);
 
   if (selectedFacts.length > 0) {
     return selectedFacts;
@@ -226,6 +232,10 @@ export const buildGroundedAnswer = (question, docs = []) => {
 
   return `Based on the college information, ${facts.join(" ")}`;
 };
+
+const isIncompleteAnswer = (answer) =>
+  answer.length < 120 ||
+  /(?:programs?|courses?|degrees?):\s*[*-]?\s*$/i.test(answer);
 
 export const answerQuestion = async (question) => {
   if (isGreeting(question)) {
@@ -274,7 +284,7 @@ export const answerQuestion = async (question) => {
           : String(response ?? "");
 
     const finalAnswer = normalizeText(rawAnswer);
-    if (finalAnswer) {
+    if (finalAnswer && !isIncompleteAnswer(finalAnswer)) {
       return finalAnswer;
     }
   } catch (error) {
