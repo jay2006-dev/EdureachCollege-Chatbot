@@ -30,6 +30,8 @@ export default function App() {
         {/* Redirect unknown routes to Home */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <h1>Welcome to the App</h1>
+      <h2>Hello, World!</h2>
 
       {/* Floating chat button — visible on all pages */}
       <FloatingChatButton />
