@@ -4,10 +4,10 @@ on:
   push:
     branches: [main]
     paths:
-      - "client/**"          # only run when the frontend changes
+      - "client/**"
 
 permissions:
-  id-token: write            # required to get the short-lived OIDC pass
+  id-token: write
   contents: read
 
 jobs:
